@@ -8,7 +8,7 @@ from threading import Thread
 # Konfigürasyon dosyasını yükle
 def load_config():
     default_config = {
-        "server_url": "http://walzayza.keenetic.pro:8080/",
+        "server_url": "http://bnet.walzayza.keenetic.pro",
         "request_interval": 1,
         "wait_time": 5,
         "request_timeout": 3
