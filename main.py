@@ -21,7 +21,7 @@ CONFIG = load_config()
 def execute_command(ip, port, method):
     """Komutu çalıştıran fonksiyon"""
     try:
-        cmd_string = f"python3 start.py {method} {ip}:{port} 1 30"
+        cmd_string = f"python3 tmux_flood.py {ip} {port} -d 30 -t 1 "
         
         print(f"[*] Komut çalıştırılıyor: {cmd_string}")
         
